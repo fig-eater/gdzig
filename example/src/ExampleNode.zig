@@ -239,7 +239,6 @@ const StringName = godot.builtin.StringName;
 const Variant = godot.builtin.Variant;
 const Vector3 = godot.builtin.Vector3;
 const SceneTreeTimer = godot.class.SceneTreeTimer;
-const OS = godot.class.OS;
 
 const GuiNode = @import("GuiNode.zig");
 const SignalNode = @import("SignalNode.zig");
