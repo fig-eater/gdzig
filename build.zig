@@ -1,23 +1,3 @@
-const builtin = @import("builtin");
-
-comptime {
-    const required_zig = "0.15.1";
-    const current_zig = builtin.zig_version;
-    const min_zig = std.SemanticVersion.parse(required_zig) catch unreachable;
-    if (current_zig.order(min_zig) == .lt) {
-        const error_message =
-            \\Version of zig is too old: {}
-            \\gdzig requires development build
-            \\{}
-            \\or higher.
-            \\Please use the right build tools from
-            \\https://ziglang.org/download/
-            \\
-        ;
-        @compileError(std.fmt.comptimePrint(error_message, .{current_zig, min_zig}));
-    }
-}
-
 pub fn build(b: *Build) !void {
     // Options
     const opt: Options = .{
@@ -174,10 +154,6 @@ fn installHeaders(
         .vendored => b.path("vendor"),
         .custom => |root| root,
     };
-
-    // TODO: can get the .json and .h from deps like GDExtensions?
-    // https://raw.githubusercontent.com/godotengine/godot-cpp/godot-4.5-stable/gdextension/gdextension_interface.h
-    // https://raw.githubusercontent.com/godotengine/godot-cpp/godot-4.5-stable/gdextension/extension_api.json
 
     return .{
         .root = files.getDirectory(),
