@@ -10,7 +10,7 @@ expected until a stable version is released. Issue reports, feature requests, an
 ## Prerequisites
 
 1. zig 0.15.1
-2. godot 4.5
+2. godot 4.4
 
 ## Usage:
 
