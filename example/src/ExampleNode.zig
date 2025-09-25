@@ -141,8 +141,8 @@ pub fn _notification(self: *ExampleNode, what: i32) void {
 }
 
 pub fn _getPropertyList(_: *ExampleNode, p: *godot.object.PropertyBuilder) !void {
-    try p.append(ExampleNode, property1_name, .{ .hint_string = "hint", });
-    try p.append(ExampleNode, property2_name, .{ .hint_string = "hint", });
+    try p.append(ExampleNode, property1_name, .{});
+    try p.append(ExampleNode, property2_name, .{ .hint_string = "hint2", });
 }
 
 pub fn _propertyCanRevert(_: *ExampleNode, name: StringName) bool {
