@@ -316,7 +316,7 @@ pub fn parseFromReader(arena: *ArenaAllocator, reader: *Reader) !Parsed(GodotApi
 }
 
 test "json convertion" {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
     const cwd = std.fs.cwd();
@@ -332,7 +332,7 @@ test "json convertion" {
     const godot_api = try parseFromReader(&arena, &reader.interface);
     const api: GodotApi = godot_api.value;
 
-    std.debug.print("{s}\n", .{api.header.version_full_name});
+    try std.testing.expect(api.header.version_full_name.len > 0);
 }
 
 const std = @import("std");
