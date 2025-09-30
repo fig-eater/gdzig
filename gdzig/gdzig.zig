@@ -75,8 +75,6 @@ pub fn entrypointWithUserdata(
 
         fn init(userdata: ?*anyopaque, p_level: c.GDExtensionInitializationLevel) callconv(.c) void {
             if (opt.init) |init_cb| {
-                // TODO: remove
-                register.init();
                 if (Userdata == void) {
                     init_cb(@enumFromInt(p_level));
                 } else {
