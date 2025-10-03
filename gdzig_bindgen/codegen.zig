@@ -892,36 +892,13 @@ fn writeFunctionHeader(w: *CodeWriter, function: *const Context.Function) !void 
                 } else if (function.return_type_initializer) |initializer| {
                     try w.printLine(" = {s};", .{initializer});
                 } else {
-                    try w.writeAll(" = ");
-                    try writeZeroesOrUndefined(w, &function.return_type);
-                    try w.writeLine(";");
+                    try w.writeAll(" = std.mem.zeroes(");
+                    try writeTypeAtReturn(w, &function.return_type);
+                    try w.writeLine(");");
                 }
             }
         }
     }
-}
-
-fn writeZeroesOrUndefined(w: *CodeWriter, @"type": *const Context.Type) !void {
-    try w.writeLine("");
-    w.indent += 1;
-    w.comment = .on;
-    try w.writeLine("Debug and ReleaseSafe will write 0xAA when a value is undefined.");
-    try w.writeLine("This prevents that from happening but also gives better performance");
-    try w.writeLine("when using other optimize modes.");
-    w.comment = .off;
-
-    try w.writeLine("if (builtin.mode == .Debug or builtin.mode == .ReleaseSafe) ");
-
-    w.indent += 1;
-    try w.writeAll("std.mem.zeroes(");
-    try writeTypeAtReturn(w, @"type");
-    try w.writeLine(")");
-    w.indent -= 1;
-
-    try w.writeLine("else");
-    w.indent += 1;
-    try w.writeAll("undefined");
-    w.indent -= 2;
 }
 
 fn writeFunctionFooter(w: *CodeWriter, function: *const Context.Function) !void {
@@ -963,7 +940,6 @@ fn writeFunctionFooter(w: *CodeWriter, function: *const Context.Function) !void 
 fn writeImports(w: *CodeWriter, root: []const u8, imports: *const Context.Imports, ctx: *const Context) !void {
     try w.printLine(
         \\const std = @import("std");
-        \\const builtin = @import("builtin");
         \\
         \\const c = @import("gdextension");
         \\
