@@ -905,12 +905,12 @@ fn writeZeroesOrUndefined(w: *CodeWriter, @"type": *const Context.Type) !void {
     try w.writeLine("");
     w.indent += 1;
     w.comment = .on;
-    try w.writeLine("Debug mode will write 0xAA when a value is undefined.");
+    try w.writeLine("Debug and ReleaseSafe will write 0xAA when a value is undefined.");
     try w.writeLine("This prevents that from happening but also gives better performance");
     try w.writeLine("when using other optimize modes.");
     w.comment = .off;
 
-    try w.writeLine("if (builtin.mode == .Debug)");
+    try w.writeLine("if (builtin.mode == .Debug or builtin.mode == .ReleaseSafe) ");
 
     w.indent += 1;
     try w.writeAll("std.mem.zeroes(");
