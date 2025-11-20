@@ -887,7 +887,11 @@ fn writeFunctionHeader(w: *CodeWriter, function: *const Context.Function, ctx: *
     if (!function.is_vararg and function.operator_name == null and !function.can_init_directly) {
         try w.printLine("var args: [{d}]c.GDExtensionConstTypePtr = undefined;", .{function.parameters.count()});
         for (function.parameters.values()[0..opt], 0..) |param, i| {
-            try w.printLine("args[{d}] = @ptrCast(&{s});", .{ i, param.name });
+            if (param.type == .variant) {
+                try w.printLine("args[{d}] = &Variant.init({s});", .{ i, param.name });
+            } else {
+                try w.printLine("args[{d}] = @ptrCast(&{s});", .{ i, param.name });
+            }
         }
         for (function.parameters.values()[opt..], opt..) |param, i| {
             if (param.needsRuntimeInit(ctx)) {
@@ -902,7 +906,11 @@ fn writeFunctionHeader(w: *CodeWriter, function: *const Context.Function, ctx: *
     if (function.is_vararg and function.operator_name == null) {
         try w.printLine("var args: [@\"...\".len + {d}]c.GDExtensionConstTypePtr = undefined;", .{function.parameters.count()});
         for (function.parameters.values()[0..opt], 0..) |param, i| {
-            try w.printLine("args[{d}] = &Variant.init(&{s});", .{ i, param.name });
+            if (param.type == .variant) {
+                try w.printLine("args[{d}] = &Variant.init({s});", .{ i, param.name });
+            } else {
+                try w.printLine("args[{d}] = &Variant.init(&{s});", .{ i, param.name }); // TODO: Evaluate if this is needed
+            }
         }
         for (function.parameters.values()[opt..], opt..) |param, i| {
             if (param.needsRuntimeInit(ctx)) {
@@ -973,6 +981,31 @@ fn writeValue(w: *CodeWriter, value: Context.Value, ctx: *const Context) !void {
 }
 
 fn writeFunctionFooter(w: *CodeWriter, function: *const Context.Function) !void {
+    // TODO: Deinit parameters
+    // var opt: usize = function.parameters.count();
+    for (function.parameters.values(), 0..) |param, i| {
+        // if (param.default != null) {
+        //     opt = i;
+        //     break;
+        // }
+
+        // deinit argument slice
+        if (function.operator_name == null and param.type == .variant) {
+            try w.printLine("@as(*const Variant, @ptrCast(@alignCast(args[{d}]))).deinit();", .{i});
+        }
+    }
+
+    // TODO: Deinit optional parameters
+
+    if (function.is_vararg) {
+        // Deinit variadic parameters
+        try w.printLine(
+            \\inline for ({d}..args.len) |i| {{
+            \\    @as(*const Variant, @ptrCast(@alignCast(args[i]))).deinit();
+            \\}}
+        , .{function.parameters.count()});
+    }
+
     switch (function.return_type) {
         // Class functions need to cast an object pointer
         .class => {
@@ -1256,7 +1289,7 @@ fn writeTypeAtParameter(w: *CodeWriter, @"type": *const Context.Type) !void {
         .string => try w.writeAll("String"),
         .string_name => try w.writeAll("StringName"),
         .@"union" => @panic("cannot format a union type in a function parameter position"),
-        .variant => try w.writeAll("Variant"),
+        .variant => try w.writeAll("anytype"),
         .void => try w.writeAll("void"),
         inline else => |s| try w.writeAll(s),
     }
