@@ -110,7 +110,11 @@ pub const Type = union(enum) {
             };
         }
 
-        if (std.mem.eql(u8, "Array", normalized)) {
+        if (std.mem.eql(u8, "void", normalized)) {
+            return .{
+                .void = {},
+            };
+        } else if (std.mem.eql(u8, "Array", normalized)) {
             return .{
                 .array = null,
             };

@@ -222,7 +222,7 @@ fn writeBuiltinMethod(w: *CodeWriter, builtin_name: []const u8, method: *const C
         \\if ({0s}_ptr == null) {{
         \\    {0s}_ptr = raw.variantGetPtrBuiltinMethod(@intFromEnum(Variant.Tag.forType({3s})), @ptrCast(&StringName.fromComptimeLatin1("{1s}")), {2d}).?;
         \\}}
-        \\{0s}_ptr.?({4s}, @ptrCast(&args), @ptrCast(&result), args.len);
+        \\{0s}_ptr.?({4s}, @ptrCast(&args), {5s}, args.len);
     , .{
         method.name,
         method.name_api,
@@ -235,6 +235,7 @@ fn writeBuiltinMethod(w: *CodeWriter, builtin_name: []const u8, method: *const C
             .mutable => "@ptrCast(self)",
             .value => "@ptrCast(@constCast(&self))",
         },
+        if (method.return_type == .void) "null" else "@ptrCast(&result)",
     });
     try writeFunctionFooter(w, method);
     try w.printLine(
@@ -887,9 +888,24 @@ fn writeFunctionHeader(w: *CodeWriter, function: *const Context.Function, ctx: *
     if (!function.is_vararg and function.operator_name == null and !function.can_init_directly) {
         try w.printLine("var args: [{d}]c.GDExtensionConstTypePtr = undefined;", .{function.parameters.count()});
         for (function.parameters.values()[0..opt], 0..) |param, i| {
-            try w.printLine("args[{d}] = @ptrCast(&{s});", .{ i, param.name });
+            if (param.type == .variant) {
+                try w.printLine(
+                    \\args[{d}] = blk: {{
+                    \\    if (@TypeOf({1s}) == Variant) break :blk @ptrCast(@alignCast(@constCast(&{1s})));
+                    \\    switch (@typeInfo(@TypeOf({1s}))) {{
+                    \\        .pointer => |p| if (p.child == Variant) break :blk @ptrCast({1s}),
+                    \\        else => {{}},
+                    \\    }}
+                    \\    break :blk @ptrCast(@alignCast(@constCast(&Variant.init({1s}))));
+                    \\}};
+                , .{ i, param.name });
+                // try w.printLine("args[{d}] = &Variant.init({s});", .{ i, param.name });
+            } else {
+                try w.printLine("args[{d}] = @ptrCast(&{s});", .{ i, param.name });
+            }
         }
         for (function.parameters.values()[opt..], opt..) |param, i| {
+            // TODO: handle these:
             if (param.needsRuntimeInit(ctx)) {
                 try w.printLine("args[{d}] = @ptrCast(&actual_{s});", .{ i, param.name });
             } else {
@@ -902,7 +918,21 @@ fn writeFunctionHeader(w: *CodeWriter, function: *const Context.Function, ctx: *
     if (function.is_vararg and function.operator_name == null) {
         try w.printLine("var args: [@\"...\".len + {d}]c.GDExtensionConstTypePtr = undefined;", .{function.parameters.count()});
         for (function.parameters.values()[0..opt], 0..) |param, i| {
-            try w.printLine("args[{d}] = &Variant.init(&{s});", .{ i, param.name });
+            if (param.type == .variant) {
+                try w.printLine(
+                    \\args[{d}] = blk: {{
+                    \\    if (@TypeOf({1s}) == Variant) break :blk @ptrCast(@alignCast(@constCast(&{1s})));
+                    \\    switch (@typeInfo(@TypeOf({1s}))) {{
+                    \\        .pointer => |p| if (p.child == Variant) break :blk @ptrCast({1s}),
+                    \\        else => {{}},
+                    \\    }}
+                    \\    break :blk @ptrCast(@alignCast(@constCast(&Variant.init({1s}))));
+                    \\}};
+                , .{ i, param.name });
+                // TODO remove:  try w.printLine("args[{d}] = &Variant.init({s});", .{ i, param.name });
+            } else {
+                try w.printLine("args[{d}] = &Variant.init(&{s});", .{ i, param.name }); // TODO: Evaluate if this is needed
+            }
         }
         for (function.parameters.values()[opt..], opt..) |param, i| {
             if (param.needsRuntimeInit(ctx)) {
@@ -973,6 +1003,50 @@ fn writeValue(w: *CodeWriter, value: Context.Value, ctx: *const Context) !void {
 }
 
 fn writeFunctionFooter(w: *CodeWriter, function: *const Context.Function) !void {
+    // TODO: Deinit parameters
+    var opt: usize = function.parameters.count();
+    for (function.parameters.values(), 0..) |param, i| {
+        if (param.default != null) {
+            opt = i;
+            break;
+        }
+
+        // deinit argument slice
+        if (function.operator_name == null and param.type == .variant) {
+            try w.printLine(
+                \\if (@TypeOf({1s}) != Variant) blk: {{
+                \\    switch (@typeInfo(@TypeOf({1s}))) {{
+                \\        .pointer => |p| if (p.child != Variant) break :blk,
+                \\        else => {{}},
+                \\    }}
+                \\    @as(*Variant, @ptrCast(@alignCast(@constCast(args[{d}])))).deinit();
+                \\}}
+            , .{ i, param.name });
+            // try w.printLine("@as(*const Variant, @ptrCast(@alignCast(args[{d}]))).deinit();", .{i});
+        }
+    }
+
+    // TODO: Deinit optional parameters
+
+    if (function.is_vararg) {
+        // Deinit variadic parameters
+        try w.printLine(
+            \\inline for ({0d}..args.len) |i| {{
+            \\    if (@TypeOf(@"..."[i - {0d}]) != Variant) blk: {{
+            \\        switch (@typeInfo(@TypeOf(@"..."[i - {0d}]))) {{
+            \\            .pointer => |p| if (p.child != Variant) break :blk,
+            \\            else => {{}},
+            \\        }}
+            \\        @as(*Variant, @ptrCast(@alignCast(@constCast(args[i])))).deinit();
+            \\    }}
+            \\}}
+        , .{function.parameters.count()});
+        // try w.printLine(
+        //     \\inline for ({d}..args.len) |i| {{
+        //     \\    @as(*const Variant, @ptrCast(@alignCast(args[i]))).deinit();
+        // , .{function.parameters.count()});
+    }
+
     switch (function.return_type) {
         // Class functions need to cast an object pointer
         .class => {
@@ -1258,7 +1332,7 @@ fn writeTypeAtParameter(w: *CodeWriter, @"type": *const Context.Type) !void {
         .string => try w.writeAll("String"),
         .string_name => try w.writeAll("StringName"),
         .@"union" => @panic("cannot format a union type in a function parameter position"),
-        .variant => try w.writeAll("Variant"),
+        .variant => try w.writeAll("anytype"),
         .void => try w.writeAll("void"),
         inline else => |s| try w.writeAll(s),
     }
