@@ -200,7 +200,7 @@ fn buildBindgen(
     exe: *Step.Compile,
 } {
     const mod = b.addModule("gdzig_bindgen", .{
-        .target = opt.target,
+        .target = if (opt.target.result.cpu.arch.isWasm()) b.graph.host else opt.target,
         .optimize = opt.optimize,
         .root_source_file = b.path("gdzig_bindgen/main.zig"),
         .link_libc = true,
