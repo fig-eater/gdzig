@@ -20,6 +20,11 @@ pub fn build(b: *std.Build) !void {
     });
     mod.addImport("gdzig", gdzig_dep.module("gdzig"));
 
+    if (target.result.os.tag == .emscripten) {
+        mod.link_libc = true;
+        mod.pic = true;
+    }
+
     const lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "example",
@@ -27,12 +32,14 @@ pub fn build(b: *std.Build) !void {
         .use_llvm = true,
     });
 
+    if (target.result.os.tag == .emscripten) {
+        lib.linkage = .static;
+    }
+
     const out_path = "../project/lib";
     // b.lib_dir = "./project/lib";
     const install = b.addInstallArtifact(lib, .{
-        .dest_dir = .{
-            .override = .{ .custom = out_path },
-        }
+        .dest_dir = .{ .override = .{ .custom = out_path } },
     });
 
     b.default_step.dependOn(&install.step);
