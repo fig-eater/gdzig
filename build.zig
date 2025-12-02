@@ -335,6 +335,124 @@ fn buildDocs(
     };
 }
 
+fn runEmsdk(b: *Build, emsdk_dep: *Dependency) *Build.Step.Run {
+    const emsdk_script = if (b.graph.host.result.os.tag == .windows) "emsdk.bat" else "emsdk";
+    return b.addSystemCommand(&.{emsdk_dep.path(emsdk_script).getPath(b)});
+}
+
+fn emsdkRequiresInstall(b: *Build, emsdk_dep: *Dependency) bool {
+    const em = emsdk_dep.path(".emscripten");
+    std.fs.accessAbsolute(em.getPath(b), .{}) catch |err| switch (err) {
+        .FileNotFound => return true,
+        else => false,
+    };
+}
+
+fn emsdkInstall(b: *Build, emsdk_dep: *Dependency) *Build.Step.Run {
+    const run_emsdk_install = runEmsdk(b, emsdk_dep);
+    run_emsdk_install.addArgs(&.{ "install", "latest" }); // TODO: option for specific version?
+    return run_emsdk_install;
+}
+
+fn emsdkActivate(b: *Build, emsdk_dep: *Dependency) *Build.Step.Run {
+    const run_emsdk_activate = runEmsdk(b, emsdk_dep);
+    run_emsdk_activate.addArgs(&.{ "activate", "latest" }); // // TODO: option for specific version?
+    return run_emsdk_activate;
+}
+
+fn runEmcc(b: *Build, emsdk_path: Build.LazyPath) *Build.Step.Run {
+    return b.addSystemCommand(&.{emsdk_path.path(b, "upstream/emscripten/emcc").getPath(b)});
+}
+
+pub const EmscriptenOptions = struct {
+    name: []const u8,
+    root_module: *Build.Module,
+    emsdk: union(enum) {
+        path: Build.LazyPath,
+        dep: *Build.Dependency,
+    },
+    threads: bool = false,
+};
+
+pub fn buildWeb(b: *Build, opt: EmscriptenOptions) Build.LazyPath {
+    const optimize = opt.root_module.optimize orelse b.standardOptimizeOption(.{});
+    const emsdk_path = switch (opt.emsdk) {
+        .path => |p| p,
+        .dep => |d| d.path(""),
+    };
+
+    if (opt.root_module.resolved_target) |target| {
+        if (target.result.os.tag != .emscripten or target.result.cpu.arch != .wasm32) {
+            std.log.err("Unsupported target for building emscripten, must be wasm32-emscripten", .{});
+            std.process.exit(1);
+        }
+    } else {
+        std.log.err("Module has unknown target", .{}); // TODO better log
+        std.process.exit(1);
+    }
+
+    const lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = opt.name,
+        .root_module = opt.root_module,
+        // .link
+    });
+    lib.addSystemIncludePath(emsdk_path.join(b.allocator, "upstream/emscripten/cache/sysroot/include") catch @panic("OOM"));
+
+    const run_emcc = runEmcc(b, emsdk_path);
+    for (lib.getCompileDependencies(false)) |dep| {
+        if (dep.isStaticLibrary()) { // TODO: check if lib vs check if static lib?
+            run_emcc.addArtifactArg(dep);
+        }
+    }
+
+    run_emcc.addArgs(&.{
+        "-sSIDE_MODULE=1",
+        "-sWASM_BIGINT",
+        "-sSUPPORT_LONGJMP='wasm'",
+
+        // Required for @returnAddress
+        // Option removed in emscripten 4.0.14
+        "-sUSE_OFFSET_CONVERTER",
+
+        // TODO: remove
+        // "-sMIN_WEBGL_VERSION=2",
+        // "-sFULL_ES3", // Currently required by zigglgen
+    });
+
+    run_emcc.addArgs(switch (optimize) {
+        .Debug => &.{
+            "-O0", // no optimizations
+            "-g", // preserve debug information
+            "-fsanitize=undefined", // clang undefined behavior detection
+        },
+        .ReleaseSafe => &.{
+            "-O3",
+            "-fsanitize=undefined", // clang undefined behavior detection
+            "-fsanitize-minimal-runtime", // use minimal runtime for UBSan
+        },
+        .ReleaseFast => &.{"-O3"},
+        .ReleaseSmall => &.{"-Oz"},
+    });
+
+    if (optimize != .Debug) {
+        run_emcc.addArgs(&.{
+            "-flto", // link time optimization
+            // reduce javascript size using closure compiler
+            "--closure",
+            "1",
+        });
+    }
+
+    if (opt.threads) {
+        run_emcc.addArg("-sUSE_PTHREADS=1");
+    }
+
+    run_emcc.addArg("-o");
+    const output = run_emcc.addOutputFileArg(b.fmt("{s}.wasm", .{lib.name}));
+    return output;
+}
+
 const std = @import("std");
 const Build = std.Build;
 const Dependency = std.Build.Dependency;
