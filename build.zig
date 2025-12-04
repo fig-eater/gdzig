@@ -335,28 +335,29 @@ fn buildDocs(
     };
 }
 
-fn runEmsdk(b: *Build, emsdk_dep: *Dependency) *Build.Step.Run {
+fn runEmsdk(b: *Build, emsdk_path: Build.LazyPath) *Build.Step.Run {
     const emsdk_script = if (b.graph.host.result.os.tag == .windows) "emsdk.bat" else "emsdk";
-    return b.addSystemCommand(&.{emsdk_dep.path(emsdk_script).getPath(b)});
+    return b.addSystemCommand(&.{emsdk_path.path(b, emsdk_script).getPath(b)});
 }
 
 fn emsdkRequiresInstall(b: *Build, emsdk_dep: *Dependency) bool {
     const em = emsdk_dep.path(".emscripten");
     std.fs.accessAbsolute(em.getPath(b), .{}) catch |err| switch (err) {
-        .FileNotFound => return true,
-        else => false,
+        error.FileNotFound => return true,
+        else => {},
     };
+    return false;
 }
 
-fn emsdkInstall(b: *Build, emsdk_dep: *Dependency) *Build.Step.Run {
-    const run_emsdk_install = runEmsdk(b, emsdk_dep);
-    run_emsdk_install.addArgs(&.{ "install", "latest" }); // TODO: option for specific version?
+fn emsdkInstall(b: *Build, emsdk_path: Build.LazyPath, version: []const u8) *Build.Step.Run {
+    const run_emsdk_install = runEmsdk(b, emsdk_path);
+    run_emsdk_install.addArgs(&.{ "install", version });
     return run_emsdk_install;
 }
 
-fn emsdkActivate(b: *Build, emsdk_dep: *Dependency) *Build.Step.Run {
-    const run_emsdk_activate = runEmsdk(b, emsdk_dep);
-    run_emsdk_activate.addArgs(&.{ "activate", "latest" }); // // TODO: option for specific version?
+fn emsdkActivate(b: *Build, emsdk_path: Build.LazyPath, version: []const u8) *Build.Step.Run {
+    const run_emsdk_activate = runEmsdk(b, emsdk_path);
+    run_emsdk_activate.addArgs(&.{ "activate", version });
     return run_emsdk_activate;
 }
 
@@ -372,14 +373,11 @@ pub const EmscriptenOptions = struct {
         dep: *Build.Dependency,
     },
     threads: bool = false,
+    emsdk_version: []const u8 = "4.0.13",
 };
 
 pub fn buildWeb(b: *Build, opt: EmscriptenOptions) Build.LazyPath {
     const optimize = opt.root_module.optimize orelse b.standardOptimizeOption(.{});
-    const emsdk_path = switch (opt.emsdk) {
-        .path => |p| p,
-        .dep => |d| d.path(""),
-    };
 
     if (opt.root_module.resolved_target) |target| {
         if (target.result.os.tag != .emscripten or target.result.cpu.arch != .wasm32) {
@@ -395,9 +393,18 @@ pub fn buildWeb(b: *Build, opt: EmscriptenOptions) Build.LazyPath {
         .linkage = .static,
         .name = opt.name,
         .root_module = opt.root_module,
-        // .link
     });
-    lib.addSystemIncludePath(emsdk_path.join(b.allocator, "upstream/emscripten/cache/sysroot/include") catch @panic("OOM"));
+
+    const emsdk_path = switch (opt.emsdk) {
+        .path => |p| p,
+        .dep => |dep| dep.path(""),
+    };
+
+    const install_emsdk = emsdkInstall(b, emsdk_path, opt.emsdk_version);
+    const activate_emsdk = emsdkActivate(b, emsdk_path, opt.emsdk_version);
+    activate_emsdk.step.dependOn(&install_emsdk.step);
+    lib.step.dependOn(&activate_emsdk.step);
+    lib.addSystemIncludePath(emsdk_path.path(b, "upstream/emscripten/cache/sysroot/include"));
 
     const run_emcc = runEmcc(b, emsdk_path);
     for (lib.getCompileDependencies(false)) |dep| {

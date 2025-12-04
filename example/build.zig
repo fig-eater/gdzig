@@ -2,7 +2,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const godot_path = b.option([]const u8, "godot", "Path to Godot engine binary [default: `godot`]") orelse "godot";
-
+    const emsdk_path = b.option([]const u8, "emsdk", "path to Emscripten SDK");
     const gdzig_dep = b.dependency("gdzig", .{
         .target = target,
         .optimize = optimize,
@@ -11,6 +11,7 @@ pub fn build(b: *std.Build) !void {
         // This is the default value, so could be omitted. If you want, you can change it to "double".
         // You should hardcode this for your project, rather than exposing it as a build option like the godot path.
         .precision = @as([]const u8, "float"),
+        .emsdk = emsdk_path,
     });
 
     const mod = b.createModule(.{
@@ -20,29 +21,34 @@ pub fn build(b: *std.Build) !void {
     });
     mod.addImport("gdzig", gdzig_dep.module("gdzig"));
 
-    if (target.result.os.tag == .emscripten) {
+    const out_path = "../project/lib";
+
+    if (target.result.cpu.arch == .wasm32 and target.result.os.tag == .emscripten) {
+        const emsdk = b.lazyDependency("emsdk", .{}) orelse return;
         mod.link_libc = true;
         mod.pic = true;
+        const wasm = gdzib.buildWeb(b, .{
+            .name = "example",
+            .emsdk = .{ .dep = emsdk },
+            .root_module = mod,
+        });
+
+        const install = b.addInstallFileWithDir(wasm, .{ .custom = out_path }, "example.wasm");
+        b.default_step.dependOn(&install.step);
+    } else {
+        const lib = b.addLibrary(.{
+            .linkage = .dynamic,
+            .name = "example",
+            .root_module = mod,
+            .use_llvm = true,
+        });
+
+        const install = b.addInstallArtifact(lib, .{
+            .dest_dir = .{ .override = .{ .custom = out_path } },
+        });
+
+        b.default_step.dependOn(&install.step);
     }
-
-    const lib = b.addLibrary(.{
-        .linkage = .dynamic,
-        .name = "example",
-        .root_module = mod,
-        .use_llvm = true,
-    });
-
-    if (target.result.os.tag == .emscripten) {
-        lib.linkage = .static;
-    }
-
-    const out_path = "../project/lib";
-    // b.lib_dir = "./project/lib";
-    const install = b.addInstallArtifact(lib, .{
-        .dest_dir = .{ .override = .{ .custom = out_path } },
-    });
-
-    b.default_step.dependOn(&install.step);
 
     const project_path = b.path("./project");
     const load_cmd = b.addSystemCommand(&.{
@@ -64,3 +70,4 @@ pub fn build(b: *std.Build) !void {
 }
 
 const std = @import("std");
+const gdzib = @import("gdzig");
