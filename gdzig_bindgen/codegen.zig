@@ -591,7 +591,13 @@ fn writeClassVirtualDispatch(w: *CodeWriter, class: *const Context.Class, ctx: *
         for (base.functions.values()) |*function| {
             if (function.mode == .final) continue;
             try w.printLine(
-                \\if (@hasDecl(T, "{0s}") and @import("std").meta.eql(@as(*StringName, @ptrCast(@constCast(p_name))).*, StringName.fromComptimeLatin1("{1s}"))) {{
+                \\
+                \\//std.log.info("decl {0s}: {{}}", .{{ @hasDecl(T, "{0s}") }});
+                \\//std.log.info("a '{{s}}'", .{{ @import("../gdzig.zig").stringNameToBuf(@as(*StringName, @ptrCast(@constCast(p_name))).*) }});
+                \\//std.log.info("b '{{s}}'", .{{ @import("../gdzig.zig").stringNameToBuf(StringName.fromLatin1("{1s}", false)) }});
+                \\std.log.info("eql {0s}: {{}}", .{{ @as(*StringName, @ptrCast(@constCast(p_name))).eql(StringName.fromComptimeLatin1("{1s}")) }});
+                \\if (@hasDecl(T, "{0s}") and @as(*StringName, @ptrCast(@constCast(p_name))).eql(StringName.fromComptimeLatin1("{1s}"))) {{
+                \\    std.log.info("decl! '{0s}'", .{{}});
                 \\    return &struct {{
                 \\        fn call(p_instance: c.GDExtensionClassInstancePtr, p_args: [*c]const c.GDExtensionConstTypePtr, p_return: c.GDExtensionTypePtr) callconv(.c) void {{
                 \\            const Fn = @TypeOf(T.{0s});
@@ -627,6 +633,7 @@ fn writeClassVirtualDispatch(w: *CodeWriter, class: *const Context.Class, ctx: *
 
     if (class.base) |base| {
         try w.printLine(
+            \\std.log.info("super!", .{{}});
             \\return {s}.getVirtualDispatch(T, p_userdata, p_name);
         , .{base});
     } else {

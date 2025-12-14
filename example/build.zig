@@ -14,6 +14,9 @@ pub fn build(b: *std.Build) !void {
         .emsdk = emsdk_path,
     });
 
+    // temp: should be only for wasm with threads
+    // target.query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.bulk_memory));
+    // target.query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.atomics));
     const mod = b.createModule(.{
         .root_source_file = b.path("src/example.zig"),
         .target = target,
@@ -27,13 +30,14 @@ pub fn build(b: *std.Build) !void {
         const emsdk = b.lazyDependency("emsdk", .{}) orelse return;
         mod.link_libc = true;
         mod.pic = true;
+        mod.single_threaded = true;
         const wasm = gdzib.buildWeb(b, .{
             .name = "example",
             .emsdk = .{ .dep = emsdk },
             .root_module = mod,
         });
 
-        const install = b.addInstallFileWithDir(wasm, .{ .custom = out_path }, "example.wasm");
+        const install = b.addInstallFileWithDir(wasm, .{ .custom = out_path }, "libexample.wasm");
         b.default_step.dependOn(&install.step);
     } else {
         const lib = b.addLibrary(.{

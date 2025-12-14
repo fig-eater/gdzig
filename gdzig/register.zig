@@ -165,6 +165,7 @@ pub fn registerClass(
 
         pub fn createInstanceBind(p_userdata: ?*anyopaque) callconv(.c) c.GDExtensionObjectPtr {
             _ = p_userdata;
+            std.log.info("create instance: '{s}'", .{@typeName(T)});
             const ret = object.create(T) catch unreachable;
             return @ptrCast(object.asObject(ret));
         }
@@ -188,8 +189,12 @@ pub fn registerClass(
         }
 
         pub fn getVirtualBind(p_class_userdata: ?*anyopaque, p_name: c.GDExtensionConstStringNamePtr) callconv(.c) c.GDExtensionClassCallVirtual {
+            var buf = std.mem.zeroes([200]u8);
+            const n = godot.string.stringNameToAscii(@as(*const godot.builtin.StringName, @ptrCast(@alignCast(p_name))).*, &buf);
             const virtual_bind = @field(object.BaseOf(T), "getVirtualDispatch");
-            return virtual_bind(T, p_class_userdata, p_name);
+            const fn_ptr = virtual_bind(T, p_class_userdata, p_name);
+            std.log.info("register virtual method: '{s}' {*}", .{ n, fn_ptr });
+            return fn_ptr;
         }
 
         pub fn getRidBind(p_instance: c.GDExtensionClassInstancePtr) callconv(.c) u64 {
@@ -218,6 +223,7 @@ pub fn registerClass(
 
 var registered_methods: StringHashMap(void) = .empty;
 pub fn registerMethod(comptime T: type, comptime name: [:0]const u8) void {
+    std.log.info("register method: '{s}::{s}'", .{ @typeName(T), name });
     //prevent duplicate registration
     const fullname = comptime meta.typeShortName(T) ++ "::" ++ name;
     if (registered_methods.contains(fullname)) return;

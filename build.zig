@@ -270,11 +270,14 @@ fn buildGdzig(
         .exclude_extensions = &.{".mixin.zig"},
     });
     _ = files.addCopyDirectory(generated, "gdzig", .{});
-
+    // var target = opt.target;
+    // target.result.cpu.features.addFeature(@intFromEnum(std.Target.wasm.Feature.bulk_memory));
+    // target.result.cpu.features.addFeature(@intFromEnum(std.Target.wasm.Feature.atomics));
     const mod = b.addModule("gdzig", .{
         .root_source_file = combined.path(b, "gdzig.zig"),
         .target = opt.target,
         .optimize = opt.optimize,
+        .single_threaded = true,
     });
 
     const lib = b.addLibrary(.{
@@ -373,7 +376,7 @@ pub const EmscriptenOptions = struct {
         dep: *Build.Dependency,
     },
     threads: bool = false,
-    emsdk_version: []const u8 = "4.0.13",
+    emsdk_version: []const u8 = godot_emscripten_version,
 };
 
 pub fn buildWeb(b: *Build, opt: EmscriptenOptions) Build.LazyPath {
@@ -388,7 +391,7 @@ pub fn buildWeb(b: *Build, opt: EmscriptenOptions) Build.LazyPath {
         std.log.err("Module has unknown target", .{}); // TODO better log
         std.process.exit(1);
     }
-
+    opt.root_module.strip = false;
     const lib = b.addLibrary(.{
         .linkage = .static,
         .name = opt.name,
@@ -430,7 +433,7 @@ pub fn buildWeb(b: *Build, opt: EmscriptenOptions) Build.LazyPath {
     run_emcc.addArgs(switch (optimize) {
         .Debug => &.{
             "-O0", // no optimizations
-            "-g", // preserve debug information
+            "-g3", // preserve debug information
             "-fsanitize=undefined", // clang undefined behavior detection
         },
         .ReleaseSafe => &.{
@@ -456,9 +459,11 @@ pub fn buildWeb(b: *Build, opt: EmscriptenOptions) Build.LazyPath {
     }
 
     run_emcc.addArg("-o");
-    const output = run_emcc.addOutputFileArg(b.fmt("{s}.wasm", .{lib.name}));
+    const output = run_emcc.addOutputFileArg(b.fmt("lib{s}.wasm", .{lib.name}));
     return output;
 }
+
+const godot_emscripten_version = "4.0.11";
 
 const std = @import("std");
 const Build = std.Build;

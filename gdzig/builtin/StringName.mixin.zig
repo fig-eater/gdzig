@@ -17,7 +17,7 @@ pub inline fn empty() StringName {
 /// **Since Godot 4.2**
 pub inline fn fromLatin1(str: [:0]const u8, is_static: bool) StringName {
     var string_name: StringName = undefined;
-    raw.stringNameNewWithLatin1Chars(string_name.ptr(), @ptrCast(str.ptr), @intFromBool(is_static));
+    raw.stringNameNewWithLatin1Chars(@ptrCast(&string_name), @ptrCast(str.ptr), @intFromBool(is_static));
     return string_name;
 }
 
@@ -31,9 +31,9 @@ pub inline fn fromLatin1(str: [:0]const u8, is_static: bool) StringName {
 ///
 /// **Since Godot 4.2**
 pub fn fromComptimeLatin1(comptime str: [:0]const u8) StringName {
-    var self: StringName = undefined;
-    raw.stringNameNewWithLatin1Chars(@ptrCast(&self), @ptrCast(str.ptr), 1);
-    return self;
+    var string_name: StringName = undefined;
+    raw.stringNameNewWithLatin1Chars(@ptrCast(&string_name), @ptrCast(str.ptr), 1);
+    return string_name;
 }
 
 /// Creates a StringName from a UTF-8 encoded string with the given length.

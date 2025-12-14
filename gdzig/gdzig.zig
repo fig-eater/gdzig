@@ -129,6 +129,13 @@ pub fn signalName(comptime S: type) builtin.StringName {
     return .fromComptimeLatin1(meta.signalName(S));
 }
 
+pub fn stringNameToBuf(str_name: builtin.StringName) []const u8 {
+    // @as(*const builtin.StringName, @ptrCast(@alignCast(p_name))).*
+    var buf = std.mem.zeroes([200]u8);
+    const n = string.stringNameToAscii(str_name, &buf);
+    return heap.general_allocator.dupe(u8, n) catch @panic("OOM");
+}
+
 comptime {
     std.testing.refAllDeclsRecursive(@This());
 }

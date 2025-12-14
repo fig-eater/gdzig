@@ -1,8 +1,12 @@
-[gd_scene load_steps=2 format=3 uid="uid://p4prpbgep4um"]
+[gd_scene load_steps=3 format=3 uid="uid://p4prpbgep4um"]
 
 [ext_resource type="Script" uid="uid://cg7rst8dn205c" path="res://demo/demo.gd" id="1_6gvlp"]
+[ext_resource type="Texture2D" uid="uid://gnqsqcbbnwtk" path="res://textures/logo.png" id="2_ytiva"]
 
 [node name="Demo" type="Node"]
 script = ExtResource("1_6gvlp")
 
-[node name="ExampleNode" type="ExampleNode" parent="."]
+[node name="SimpleNode" type="SimpleNode" parent="."]
+
+[node name="Sprite2D" type="Sprite2D" parent="SimpleNode"]
+texture = ExtResource("2_ytiva")
