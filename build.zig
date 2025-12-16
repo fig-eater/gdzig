@@ -80,7 +80,7 @@ pub fn build(b: *Build) void {
     bindgen_options.addOptionPath("headers", latest_headers);
 
     const bindgen_mod = b.addModule("gdzig_bindgen", .{
-        .target = target,
+        .target = b.graph.host,
         .optimize = optimize,
         .root_source_file = b.path("gdzig_bindgen/main.zig"),
         .link_libc = true,
