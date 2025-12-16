@@ -50,6 +50,7 @@ pub fn init(backing_allocator: ?Allocator) GeneralPurposeAllocator {
 pub fn allocator(self: *GeneralPurposeAllocator) Allocator {
     return switch (strategy) {
         .fast => self.impl,
+        .wasm => std.heap.wasm_allocator,
         else => self.impl.allocator(),
     };
 }

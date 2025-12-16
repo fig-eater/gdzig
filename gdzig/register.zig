@@ -21,7 +21,7 @@ pub fn registerExtension(comptime T: type, comptime opt: ExtensionOptions) void 
         ) callconv(.c) c.GDExtensionBool {
             raw.* = .init(p_get_proc_address.?, p_library.?);
             raw.getGodotVersion(@ptrCast(&gdzig.version));
-
+            std.debug.print("here\n", .{});
             const self = if (@typeInfo(return_type) == .error_union)
                 T.create() catch return @intFromBool(false)
             else

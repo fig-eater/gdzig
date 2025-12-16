@@ -7,7 +7,7 @@ pub fn build(b: *Build) !void {
     const godot_exe = godot.executable(b, b.graph.host, godot_version) orelse return;
 
     // Dependencies
-    const gdzig = b.dependency("gdzig", .{
+    const gdzig_dep = b.dependency("gdzig", .{
         .target = target,
         .optimize = optimize,
         .godot = godot_version,
@@ -19,30 +19,48 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "gdzig", .module = gdzig.module("gdzig") },
+            .{ .name = "gdzig", .module = gdzig_dep.module("gdzig") },
         },
     });
 
-    // Library
-    const lib = b.addLibrary(.{
-        .name = "example",
-        .linkage = .dynamic,
-        .root_module = mod,
-        .use_llvm = true,
-    });
+    const out_path = "../project/lib";
+    const is_web_target = target.result.cpu.arch == .wasm32 and target.result.os.tag == .emscripten;
+    const install_step = if (is_web_target) blk: {
+        const emsdk = b.lazyDependency("emsdk", .{}) orelse return;
+        mod.link_libc = true;
+        mod.pic = true;
+        mod.single_threaded = true;
+        const lib = gdzig.buildWeb(b, .{
+            .name = "example",
+            .root_module = mod,
+            .emsdk_path = emsdk.path(""),
+        });
+        const install = b.addInstallFileWithDir(lib, .{ .custom = out_path }, "libexample.wasm");
+        b.default_step.dependOn(&install.step);
+        break :blk &install.step;
+    } else blk: {
+        // Library
+        const lib = b.addLibrary(.{
+            .name = "example",
+            .linkage = .dynamic,
+            .root_module = mod,
+            .use_llvm = true,
+        });
 
-    // Install
-    const install = b.addInstallArtifact(lib, .{
-        .dest_dir = .{ .override = .{ .custom = "../project/lib" } },
-    });
-    b.default_step.dependOn(&install.step);
+        // Install
+        const install = b.addInstallArtifact(lib, .{
+            .dest_dir = .{ .override = .{ .custom = out_path } },
+        });
+        b.default_step.dependOn(&install.step);
+        break :blk &install.step;
+    };
 
     // Run
     const run = Build.Step.Run.create(b, "run godot");
     run.addFileArg(godot_exe);
     run.addArg("--path");
     run.addDirectoryArg(b.path("./project"));
-    run.step.dependOn(&install.step);
+    run.step.dependOn(install_step);
 
     const run_step = b.step("run", "Run with Godot");
     run_step.dependOn(&run.step);
@@ -50,5 +68,5 @@ pub fn build(b: *Build) !void {
 
 const std = @import("std");
 const Build = std.Build;
-
+const gdzig = @import("gdzig");
 const godot = @import("godot");
