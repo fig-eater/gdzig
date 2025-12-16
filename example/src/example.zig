@@ -3,10 +3,7 @@ comptime {
 }
 
 // WASM cannot use DebugAllocator in Zig ~0.15
-const wasm_allocator: Allocator = .{
-    .ptr = undefined,
-    .vtable = &WasmAllocator.vtable,
-};
+const wasm_allocator: Allocator = godot.engine_allocator;
 
 pub const Extension = struct {
     gpa: if (builtin.os.tag == .emscripten) void else DebugAllocator(.{}),
@@ -28,29 +25,28 @@ pub const Extension = struct {
 
     pub fn init(self: *Extension, level: InitializationLevel) void {
         std.log.info("here3!!!", .{});
-        _ = self;
         if (level == .scene) {
-            // godot.registerClass(ExampleNode, .{ .userdata = &self.allocator });
-            // godot.registerMethod(ExampleNode, .onTimeout);
-            // godot.registerMethod(ExampleNode, .onResized);
-            // godot.registerMethod(ExampleNode, .onItemFocused);
+            godot.registerClass(ExampleNode, .{ .userdata = &self.allocator });
+            godot.registerMethod(ExampleNode, .onTimeout);
+            godot.registerMethod(ExampleNode, .onResized);
+            godot.registerMethod(ExampleNode, .onItemFocused);
 
-            // godot.registerClass(GuiNode, .{ .userdata = &self.allocator });
-            // godot.registerMethod(GuiNode, .onPressed);
-            // godot.registerMethod(GuiNode, .onToggled);
+            godot.registerClass(GuiNode, .{ .userdata = &self.allocator });
+            godot.registerMethod(GuiNode, .onPressed);
+            godot.registerMethod(GuiNode, .onToggled);
 
-            // godot.registerClass(SignalNode, .{ .userdata = &self.allocator });
-            // godot.registerMethod(SignalNode, .onSignal1);
-            // godot.registerMethod(SignalNode, .onSignal2);
-            // godot.registerMethod(SignalNode, .onSignal3);
-            // godot.registerMethod(SignalNode, .emitSignal1);
-            // godot.registerMethod(SignalNode, .emitSignal2);
-            // godot.registerMethod(SignalNode, .emitSignal3);
-            // godot.registerSignal(SignalNode, SignalNode.Signal1);
-            // godot.registerSignal(SignalNode, SignalNode.Signal2);
-            // godot.registerSignal(SignalNode, SignalNode.Signal3);
+            godot.registerClass(SignalNode, .{ .userdata = &self.allocator });
+            godot.registerMethod(SignalNode, .onSignal1);
+            godot.registerMethod(SignalNode, .onSignal2);
+            godot.registerMethod(SignalNode, .onSignal3);
+            godot.registerMethod(SignalNode, .emitSignal1);
+            godot.registerMethod(SignalNode, .emitSignal2);
+            godot.registerMethod(SignalNode, .emitSignal3);
+            godot.registerSignal(SignalNode, SignalNode.Signal1);
+            godot.registerSignal(SignalNode, SignalNode.Signal2);
+            godot.registerSignal(SignalNode, SignalNode.Signal3);
 
-            // godot.registerClass(SpriteNode, .{ .userdata = &self.allocator });
+            godot.registerClass(SpriteNode, .{ .userdata = &self.allocator });
         }
     }
 
