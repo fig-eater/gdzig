@@ -1,3 +1,5 @@
+const project_lib_path = "../project/lib";
+
 pub fn build(b: *Build) !void {
     // Options
     const target = b.standardTargetOptions(.{});
@@ -16,23 +18,21 @@ pub fn build(b: *Build) !void {
     });
 
     // Library
-    const lib = gdzig.addLibrary(b, .{
+    _, const install_step = gdzig.addLibrary(b, .{
         .name = "example",
         .root_module = mod,
+        .install_dir = project_lib_path,
     });
 
     // Install
-    const install = b.addInstallArtifact(lib, .{
-        .dest_dir = .{ .override = .{ .custom = "../project/lib" } },
-    });
-    b.default_step.dependOn(&install.step);
+    b.default_step.dependOn(install_step);
 
     // Run
     const run = Build.Step.Run.create(b, "run godot");
     run.addFileArg(godot_exe);
     run.addArg("--path");
     run.addDirectoryArg(b.path("./project"));
-    run.step.dependOn(&install.step);
+    run.step.dependOn(install_step);
 
     const run_step = b.step("run", "Run with Godot");
     run_step.dependOn(&run.step);
