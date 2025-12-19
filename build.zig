@@ -1,7 +1,7 @@
 const default_version = "4.5";
 
 // Default emscripten verison for web builds. Matches version used by Godot.
-const godot_emscripten_version = "4.0.11";
+const godot_emscripten_version = "4.0.20";
 
 pub fn build(b: *Build) void {
     //
