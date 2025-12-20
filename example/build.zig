@@ -6,7 +6,7 @@ pub fn build(b: *Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const godot_version = b.option([]const u8, "godot", "Which version of Godot to generate bindings for [default: `4.5.1`]") orelse "4.5.1";
-    const single_threaded = b.option(bool, "threads", "Target single threaded build [default: false]") orelse false;
+    const single_threaded = b.option(bool, "single_threaded", "Target single threaded build [default: false]") orelse false;
     const godot_exe = godot.executable(b, b.graph.host, godot_version) orelse return;
 
     // Module

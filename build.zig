@@ -241,10 +241,14 @@ pub const CreateGdzigModuleOptions = struct {
 pub fn createModule(b: *Build, options: CreateGdzigModuleOptions) *Module {
     var target: ?std.Build.ResolvedTarget = options.target;
 
+    var pic = options.pic;
     // Set required atomics and bulk_memory features for threaded web target
-    if (target) |*t| if (t.result.cpu.arch.isWasm() and !(options.single_threaded orelse true)) {
-        t.query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.atomics));
-        t.query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.bulk_memory));
+    if (target) |*t| if (t.result.cpu.arch.isWasm()) {
+        pic = true;
+        if (!(options.single_threaded orelse true)) {
+            t.query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.atomics));
+            t.query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.bulk_memory));
+        }
     };
 
     // Dependencies
@@ -282,7 +286,7 @@ pub fn createModule(b: *Build, options: CreateGdzigModuleOptions) *Module {
         .sanitize_thread = options.sanitize_thread,
         .fuzz = options.fuzz,
         .valgrind = options.valgrind,
-        .pic = options.pic,
+        .pic = pic,
         .red_zone = options.red_zone,
         .omit_frame_pointer = options.omit_frame_pointer,
         .error_tracing = options.error_tracing,
@@ -337,6 +341,9 @@ pub fn addLibrary(b: *Build, options: AddGdzigLibraryOptions) struct { *Step.Com
             const emsdk_dep = gdzig_dep.builder.lazyDependency("emsdk", .{}) orelse std.process.exit(0);
             break :blk emsdk_dep.path("");
         };
+        const output_name = b.fmt("lib{s}.wasm", .{lib.name});
+
+        lib.linkage = .static; // build static library to be linked with emcc
 
         // if (opt.root_module.resolved_target) |target| {
         //     if (target.result.os.tag != .emscripten or target.result.cpu.arch != .wasm32) {
@@ -405,12 +412,12 @@ pub fn addLibrary(b: *Build, options: AddGdzigLibraryOptions) struct { *Step.Com
         run_emcc.addArgs(options.emcc_options);
 
         run_emcc.addArg("-o");
-        const wasm_lib = run_emcc.addOutputFileArg(b.fmt("lib{s}.wasm", .{lib.name}));
+        const wasm_lib = run_emcc.addOutputFileArg(output_name);
 
         install_step = &b.addInstallFileWithDir(
             wasm_lib,
             .{ .custom = options.install_dir },
-            "libexample.wasm",
+            output_name,
         ).step;
 
         install_step.?.dependOn(&run_emcc.step);
